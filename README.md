@@ -1,2 +1,2 @@
 # 2PLBasicProtocol
-Trabalho de implementação para um Protocolo 2PL Básico em Banco de dados
+Trabalho de implementação para um Protocolo 2PL Básico em Banco de dados para disciplina de Aspectos e Implementação de Banco de Dados da Universidade de Caxias do Sul (UCS).
