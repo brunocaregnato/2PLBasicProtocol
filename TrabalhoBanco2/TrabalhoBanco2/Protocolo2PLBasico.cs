@@ -14,7 +14,7 @@ namespace TrabalhoBanco2
         private Dictionary<int, Transactions> TransactionsList { get; set; }
         private  TextBox OutPut { get; set; }
         private Queue<string> ExecutionRow { get; set; }
-        private Dictionary<int, FilaComandosTransactions> WaitingTransactionsList { get; set; };
+        private Dictionary<int, TransactionCommandQueue> WaitingTransactionsList { get; set; }
 
         public Protocolo2PLBasico()
         {
@@ -534,7 +534,7 @@ namespace TrabalhoBanco2
             DataLockTransactions dadoLockTransactions = TransactionDataLock[Dado];
             if (dadoLockTransactions != null)
             {
-                dadoLockTransactions.RemoveTransactions(Transactions);
+                dadoLockTransactions.RemoveTransacao(Transactions);
                 // Se não existe mais nenhuma transação utilizando o dado
                 // então remove da lista de dados utilizados.
                 if (dadoLockTransactions.NumeroDeTransacoes() == 0)

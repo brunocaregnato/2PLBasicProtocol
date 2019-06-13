@@ -13,7 +13,7 @@ namespace TrabalhoBanco2
         Unlock,
         Commit
 	}
-    class DadoLockTransacao
+    class DataLockTransactions
     {
         private String _dado;
         private Dictionary<int, Transactions> _listaTransacoes;
@@ -32,7 +32,7 @@ namespace TrabalhoBanco2
             }
         }
 
-        public DadoLockTransacao(String Dado, TipoLockDado LockDado)
+        public DataLockTransactions(String Dado, TipoLockDado LockDado)
         {
             _listaTransacoes = new Dictionary<int, Transactions>();
             _tipoLock = LockDado;
