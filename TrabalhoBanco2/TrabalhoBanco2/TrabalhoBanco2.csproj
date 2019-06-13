@@ -44,7 +44,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="DadoLockTransacao.cs" />
+    <Compile Include="DataLockTransactions.cs" />
     <Compile Include="FilaComandosTransacao.cs" />
     <Compile Include="Form1.cs">
       <SubType>Form</SubType>
