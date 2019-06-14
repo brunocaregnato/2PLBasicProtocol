@@ -18,24 +18,33 @@ namespace TrabalhoBanco2
             InitializeComponent();
             tbCadastrar.Text = "w1[x]-r2[y]-w2[y]-c2-w1[y]-c1";
             _protocolo2PBasico = new Protocolo2PLBasico();
-            
-            
+
         }
 
-        private void btnExecutar_Click(object sender, EventArgs e)
+        private void label1_Click(object sender, EventArgs e)
         {
-            _protocolo2PBasico = new Protocolo2PLBasico();
-           // _protocolo2PBasico.AnalisarHistoria(tbCadastrar.Text, tbSaida,tbFilaExecucao,tbTransEspera,tbTransAbortadas,tbFilaDeEspera,tbTransacaoXDadoLock, (int)nudTempoExecucao.Value);
+
+        }
+
+        private void label2_Click(object sender, EventArgs e)
+        {
+
         }
 
         private void btnPassoAPasso_Click(object sender, EventArgs e)
         {
-            //_protocolo2PBasico.AnalisarHistoria(tbCadastrar.Text, tbSaida, tbFilaExecucao,tbTransEspera, tbTransAbortadas,tbFilaDeEspera,tbTransacaoXDadoLock);
+            _protocolo2PBasico.History(tbCadastrar.Text, tbSaida, tbFilaExecucao, tbTransEspera, tbTransAbortadas, tbFilaDeEspera, tbTransacaoXDadoLock);
         }
 
         private void btnLimpar_Click(object sender, EventArgs e)
         {
             _protocolo2PBasico = new Protocolo2PLBasico();
+            tbSaida.Text = "";
+            tbFilaExecucao.Text = "";
+            tbTransEspera.Text = "";
+            tbTransAbortadas.Text = "";
+            tbFilaDeEspera.Text = "";
+            tbTransacaoXDadoLock.Text = "";
         }
     }
 }

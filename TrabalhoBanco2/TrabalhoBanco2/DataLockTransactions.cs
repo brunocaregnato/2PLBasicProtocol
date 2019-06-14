@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace TrabalhoBanco2
 {
-    enum TipoLockDado
+    enum LockDataType
 	{
         Shared,
         Exclusive,
@@ -17,11 +17,11 @@ namespace TrabalhoBanco2
     {
         private String _dado;
         private Dictionary<int, Transactions> _listaTransacoes;
-        private TipoLockDado _tipoLock;
+        private LockDataType _tipoLock;
 
         public String Dado { get { return _dado; } }
 
-        public TipoLockDado TipoLock {
+        public LockDataType TipoLock {
             get
             {
                 return _tipoLock;
@@ -32,7 +32,7 @@ namespace TrabalhoBanco2
             }
         }
 
-        public DataLockTransactions(String Dado, TipoLockDado LockDado)
+        public DataLockTransactions(String Dado, LockDataType LockDado)
         {
             _listaTransacoes = new Dictionary<int, Transactions>();
             _tipoLock = LockDado;
@@ -41,29 +41,29 @@ namespace TrabalhoBanco2
 
         public void AdicionaTransacao(Transactions Transacao)
         {
-            _listaTransacoes.Add(Transacao.NumeroTransacao, Transacao);
+            _listaTransacoes.Add(Transacao.TransactionNumber, Transacao);
         }
 
         public void RemoveTransacao(Transactions Transacao)
         {
             // Verifica se a transação possui o dado em lock
-            if (_listaTransacoes.ContainsKey(Transacao.NumeroTransacao))
+            if (_listaTransacoes.ContainsKey(Transacao.TransactionNumber))
             {
                 // Verifica se o tipo de lock é exclusivo
-                TipoLockDado tipoLockDado = Transacao.RetornaTipoLockDado(_dado);
-                if (tipoLockDado == TipoLockDado.Exclusive)
+                LockDataType LockDataType = Transacao.ReturnDataLockType(_dado);
+                if (LockDataType == LockDataType.Exclusive)
                 {
                     // Quando uma transação que possui um lock exclusivo é removida deve alterar o status do dado
                     // para compartilhado
-                    _tipoLock = TipoLockDado.Shared;
+                    _tipoLock = LockDataType.Shared;
                 }
-                _listaTransacoes.Remove(Transacao.NumeroTransacao);
+                _listaTransacoes.Remove(Transacao.TransactionNumber);
             }
         }
 
-        public bool VerificaLockParaTransacao(int NumeroTransacao)
+        public bool VerificaLockParaTransacao(int TransactionNumber)
         {
-            if (_listaTransacoes.ContainsKey(NumeroTransacao))
+            if (_listaTransacoes.ContainsKey(TransactionNumber))
             {
                 return true;
             }
@@ -75,11 +75,11 @@ namespace TrabalhoBanco2
             return _listaTransacoes.Count;
         }
 
-        public Transactions RetornaTransacao(int NumeroTransacao)
+        public Transactions RetornaTransacao(int TransactionNumber)
         {
-            if (VerificaLockParaTransacao(NumeroTransacao))
+            if (VerificaLockParaTransacao(TransactionNumber))
             {
-                return _listaTransacoes[NumeroTransacao];
+                return _listaTransacoes[TransactionNumber];
             }
             return null;
         }

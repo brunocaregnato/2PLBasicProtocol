@@ -45,7 +45,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="DataLockTransactions.cs" />
-    <Compile Include="TransactionCommandQueue.cs" />
+    <Compile Include="TransactionQueueCommand.cs" />
     <Compile Include="Form1.cs">
       <SubType>Form</SubType>
     </Compile>

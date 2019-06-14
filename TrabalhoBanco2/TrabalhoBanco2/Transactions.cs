@@ -9,9 +9,9 @@ namespace TrabalhoBanco2
     
     class Transactions
     {
-        public int Transaction { get; private set; }
-        public Dictionary<string, TipoLockDado> DataUsed { get; private set; }
-        public int ComandosExecutados { get; set; }
+        public int TransactionNumber { get; private set; }
+        public Dictionary<string, LockDataType> DataUsed { get; private set; }
+        public int ExecutedCommands { get; set; }
         public TransactionTypeLock LockType
         {
             get => LockType;
@@ -20,20 +20,20 @@ namespace TrabalhoBanco2
 
         public Transactions(int NumeroTransacao, TransactionTypeLock TipoLock)
         {
-            Transaction = NumeroTransacao;
-            DataUsed = new Dictionary<string, TipoLockDado>();
+            TransactionNumber = NumeroTransacao;
+            DataUsed = new Dictionary<string, LockDataType>();
 
         }
 
-        public void AdicionarDado(String Dado, TipoLockDado TipoLockDado)
+        public void AddData(string Dado, LockDataType LockDataType)
         {
             if (!DataUsed.ContainsKey(Dado))
             {
-                DataUsed.Add(Dado,TipoLockDado);
+                DataUsed.Add(Dado,LockDataType);
             }
         }
 
-        public void RemoverDado(String Dado)
+        public void RemoveData(String Dado)
         {
             if (DataUsed.ContainsKey(Dado))
             {
@@ -41,12 +41,12 @@ namespace TrabalhoBanco2
             }
         }
 
-        public String[] RetornaDadosUtilizados()
+        public String[] ReturnDataUsed()
         {
             return DataUsed.Keys.ToArray<String>();
         }
 
-        public TipoLockDado RetornaTipoLockDado(String Dado)
+        public LockDataType ReturnDataLockType(String Dado)
         {
             if (DataUsed.ContainsKey(Dado))
             {
@@ -54,15 +54,15 @@ namespace TrabalhoBanco2
             }
             else
             {
-                return TipoLockDado.Unlock;
+                return LockDataType.Unlock;
             }
         }
 
-        public void AlterarTipoLockDado(String Dado, TipoLockDado NovoTipoLockDado)
+        public void ChangeDataLockType(String Dado, LockDataType NovoLockDataType)
         {
             if (DataUsed.ContainsKey(Dado))
             {
-                DataUsed[Dado] = NovoTipoLockDado;
+                DataUsed[Dado] = NovoLockDataType;
             }
         }
     }
