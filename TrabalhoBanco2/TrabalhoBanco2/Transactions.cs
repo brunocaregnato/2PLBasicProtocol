@@ -6,17 +6,22 @@ using System.Threading.Tasks;
 
 namespace TrabalhoBanco2
 {
-    
+    enum TransactionTypeLock
+    {
+        // Transação que está executando
+        Executing,
+        // Transação que está esperando o dado utilizado por outra transação
+        Waiting,
+        // Transação que foi abortada
+        Aborted
+    }
+
     class Transactions
     {
         public int TransactionNumber { get; private set; }
         public Dictionary<string, LockDataType> DataUsed { get; private set; }
         public int ExecutedCommands { get; set; }
-        public TransactionTypeLock LockType
-        {
-            get => LockType;
-            set => LockType = value; 
-        }
+        public TransactionTypeLock LockType { get; set; }
 
         public Transactions(int NumeroTransacao, TransactionTypeLock TipoLock)
         {
@@ -65,15 +70,5 @@ namespace TrabalhoBanco2
                 DataUsed[Dado] = NovoLockDataType;
             }
         }
-    }
-
-    enum TransactionTypeLock
-    {
-        // Transação que está executando
-        Executing,
-        // Transação que está esperando o dado utilizado por outra transação
-        Waiting,
-        // Transação que foi abortada
-        Aborted
     }
 }
