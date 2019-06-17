@@ -6,49 +6,49 @@ using System.Threading.Tasks;
 
 namespace TrabalhoBanco2
 {
-    class FilaComandosTransacao
+    class FilaCommandsTransaction
     {
-        private Transactions _transacao;
-        private Queue<String> _filaComandos;
+        private Transactions _Transaction;
+        private Queue<String> _filaCommands;
 
-        public FilaComandosTransacao(Transactions Transacao)
+        public FilaCommandsTransaction(Transactions Transaction)
         {
-            _transacao = Transacao;
-            _filaComandos = new Queue<string>();
+            _Transaction = Transaction;
+            _filaCommands = new Queue<string>();
         }
 
         public String DadoEmEspera 
         {
             get
             {
-                String primeiroComando = ConsultaComando();
-                String dado = primeiroComando.Substring(3, 1);
+                String firstCommand = CheckCommand();
+                String dado = firstCommand.Substring(3, 1);
                 return dado;
             }
         }
 
-        public Transactions Transacao { get { return _transacao; } }
+        public Transactions Transaction { get { return _Transaction; } }
 
-        public int ContComandos { get { return _filaComandos.Count; } }
+        public int ContCommands { get { return _filaCommands.Count; } }
 
-        public void AdicionaComando(String Comando)
+        public void AdicionaCommand(String Command)
         {
-            _filaComandos.Enqueue(Comando);
+            _filaCommands.Enqueue(Command);
         }
 
-        public String RemoveComando()
+        public String RemoveCommand()
         {
-            return _filaComandos.Dequeue();
+            return _filaCommands.Dequeue();
         }
 
-        public String ConsultaComando()
+        public String CheckCommand()
         {
-            return _filaComandos.Peek();
+            return _filaCommands.Peek();
         }
 
-        public String[] RetornaFilaComandos()
+        public String[] RetornaFilaCommands()
         {
-            return _filaComandos.ToArray<string>();
+            return _filaCommands.ToArray<string>();
         }
     }
 }

@@ -1,8 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace TrabalhoBanco2
 {
@@ -17,38 +14,34 @@ namespace TrabalhoBanco2
             QueueCommands = new Queue<string>();
         }
 
-        public string WaitingData 
+        public string WaitingData
         {
             get
             {
-                String primeiroComando = ConsultaComando();
-                String dado = primeiroComando.Substring(3, 1);
+                string primeiroComando = CheckCommand();
+                string dado = primeiroComando.Substring(3, 1);
                 return dado;
             }
 
             set { }
         }
 
-        public Transactions Transacao { get { return Transaction; } }
-
-        public int ContComandos { get { return QueueCommands.Count; } }
-
-        public void AdicionaComando(String Comando)
+        public void AddComamand(string Comando)
         {
             QueueCommands.Enqueue(Comando);
         }
 
-        public String RemoveComando()
+        public string RemoveCommand()
         {
             return QueueCommands.Dequeue();
         }
 
-        public String ConsultaComando()
+        public string CheckCommand()
         {
             return QueueCommands.Peek();
         }
 
-        public String[] RetornaFilaComandos()
+        public string[] ReturnQueueCommand()
         {
             return QueueCommands.ToArray<string>();
         }

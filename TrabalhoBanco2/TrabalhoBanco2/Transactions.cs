@@ -1,8 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace TrabalhoBanco2
 {
@@ -23,9 +20,9 @@ namespace TrabalhoBanco2
         public int ExecutedCommands { get; set; }
         public TransactionTypeLock LockType { get; set; }
 
-        public Transactions(int NumeroTransacao, TransactionTypeLock TipoLock)
+        public Transactions(int NumeroTransaction, TransactionTypeLock TipoLock)
         {
-            TransactionNumber = NumeroTransacao;
+            TransactionNumber = NumeroTransaction;
             DataUsed = new Dictionary<string, LockDataType>();
 
         }
@@ -33,42 +30,35 @@ namespace TrabalhoBanco2
         public void AddData(string Dado, LockDataType LockDataType)
         {
             if (!DataUsed.ContainsKey(Dado))
-            {
                 DataUsed.Add(Dado,LockDataType);
-            }
+            
         }
 
-        public void RemoveData(String Dado)
+        public void RemoveData(string Dado)
         {
             if (DataUsed.ContainsKey(Dado))
-            {
-                DataUsed.Remove(Dado);
-            }
+                DataUsed.Remove(Dado);            
         }
 
-        public String[] ReturnDataUsed()
+        public string[] ReturnDataUsed()
         {
-            return DataUsed.Keys.ToArray<String>();
+            return DataUsed.Keys.ToArray();
         }
 
-        public LockDataType ReturnDataLockType(String Dado)
+        public LockDataType ReturnDataLockType(string Dado)
         {
             if (DataUsed.ContainsKey(Dado))
-            {
                 return DataUsed[Dado];
-            }
+            
             else
-            {
                 return LockDataType.Unlock;
-            }
         }
 
-        public void ChangeDataLockType(String Dado, LockDataType NovoLockDataType)
+        public void ChangeDataLockType(string Dado, LockDataType NovoLockDataType)
         {
             if (DataUsed.ContainsKey(Dado))
-            {
                 DataUsed[Dado] = NovoLockDataType;
-            }
+            
         }
     }
 }

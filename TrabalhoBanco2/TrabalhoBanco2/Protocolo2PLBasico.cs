@@ -5,21 +5,25 @@ using System.Windows.Forms;
 
 namespace TrabalhoBanco2
 {
-    /// <summary>
-    /// Define o tipo de execução utilizado
-    /// </summary>
-    class Protocolo2PLBasico
+    class Protocol2PLBasic
     {
-        private Dictionary<String, DataLockTransactions> TransactionDataLock { get; set; }
+        private Dictionary<string, DataLockTransactions> TransactionDataLock { get; set; }
         private Dictionary<int, Transactions> TransactionsList { get; set; }
-        private  TextBox OutPut { get; set; }
+        private TextBox OutPut { get; set; }
         private Queue<string> ExecutionRow { get; set; }
         private Dictionary<int, TransactionQueueCommand> WaitingTransactionsList { get; set; }
+
+        public Protocol2PLBasic()
+        {
+            TransactionsList = new Dictionary<int, Transactions>();
+            TransactionDataLock = new Dictionary<string, DataLockTransactions>();
+            WaitingTransactionsList = new Dictionary<int, TransactionQueueCommand>();
+        }
 
         // exemplo: w1(x)-r2(y)-w2(y)-c2-w1(y)
         public void History(string entryTransaction, TextBox output, TextBox RunningRow, TextBox WaitingTransaction, TextBox AbortedTransaction, TextBox Queue, TextBox DataLock)
         {
-            String[] transactionList;
+            string[] transactionList;
 
             // Quebra a string de entrada em um vetor de string
             transactionList = entryTransaction.Split('-');
@@ -29,93 +33,97 @@ namespace TrabalhoBanco2
             
             if (ExecutionRow.Count > 0)
             {
-                ExecutaComando(ExecutionRow.Dequeue());
-                AnalisaFilaEspera();
+                RunCommand(ExecutionRow.Dequeue());
+                CheckWaitingQueue();
                 RunningRow.Text = RetornaRunningRow();
-                WaitingTransaction.Text = RetornaTransacoesEmEspera();
-                AbortedTransaction.Text = RetornaTransacoesAborteds();
-                Queue.Text = RetornaQueue();
-                DataLock.Text = RetornaDataLock();
-                PosicionaCursorFinal(OutPut);
+                WaitingTransaction.Text = ReturnWaitingTransactions();
+                AbortedTransaction.Text = ReturnTransactionsAborteds();
+                Queue.Text = ReturnQueue();
+                DataLock.Text = ReturnDataLock();
+                SetFinalPoint(OutPut);
                 RunningRow.Refresh();
                 WaitingTransaction.Refresh();
                 AbortedTransaction.Refresh();
                 DataLock.Refresh();
-                PosicionaCursorFinal(Queue);
+                SetFinalPoint(Queue);
             }
             else
             {
                 OutPut.Text += "\r\nExecução finalizada.";
-                PosicionaCursorFinal(OutPut);
+                SetFinalPoint(OutPut);
             }
         }
         
-        private void AnalisaFilaEspera()
+        private void CheckWaitingQueue()
         {
             // Analisa primeiro comando de cada transação.
-            List<int> excluidos = new List<int>();
-            foreach (int TransactionNumber in WaitingTransactionsList.Keys)
+            List<int> excludes = new List<int>();
+            foreach (var TransactionNumber in WaitingTransactionsList.Keys)
             {
-                TransactionQueueCommand comandosTransactions = WaitingTransactionsList[TransactionNumber];
-                if (comandosTransactions.Transaction.LockType != TransactionTypeLock.Aborted)
+                TransactionQueueCommand commandsTransactions = WaitingTransactionsList[TransactionNumber];
+                if (!commandsTransactions.Transaction.LockType.Equals(TransactionTypeLock.Aborted))
                 {
-                    String primeiroComando = comandosTransactions.ConsultaComando();
-                    LockDataType LockDataType = RetornaLockType(primeiroComando.Substring(0, 1));
+                    string firstCommand = commandsTransactions.CheckCommand();
+                    LockDataType LockDataType = ReturnLockType(firstCommand.Substring(0, 1));
 
-                    DisponibilidadeDado dispDado = RetornaDisponibilidadeDado(comandosTransactions.Transaction, LockDataType, comandosTransactions.WaitingData);
+                    FreeData freeData = ReturnFreeData(commandsTransactions.Transaction, LockDataType, commandsTransactions.WaitingData);
 
                     // Se o dado estiver disponivel remove todos os dados da fila e adiciona novamente à fila de execução
-                    int TransactionsEliminada = 0;
+                    int RemovedTransaction = 0;
                     string ciclo = "";
                     string retorno = "";
-                    switch (dispDado)
+                    switch (freeData)
                     {
-                        case DisponibilidadeDado.DadoDisponivel:
-                        case DisponibilidadeDado.DadoSharedTransactions:
-                        case DisponibilidadeDado.DadoSharedOutraTransactions:
-                            Queue<String> filaTemp = new Queue<string>();
+                        case FreeData.FreeData:
+                        case FreeData.SharedTransactionsData:
+                        case FreeData.OtherSharedTransactionsData:
+
+                            Queue<string> tempQueue = new Queue<string>();
+
                             // Remove tudo que está na fila de execução para adicionar a fila de espera na frente
-                            while (ExecutionRow.Count > 0)
+                            while (ExecutionRow.Count > 0) tempQueue.Enqueue(ExecutionRow.Dequeue());
+                            
+                            while (commandsTransactions.QueueCommands.Count > 0)
                             {
-                                filaTemp.Enqueue(ExecutionRow.Dequeue());
+                                AddOutPut("Comando: " + commandsTransactions.CheckCommand() + " adicionado à fila de execução.");
+                                ExecutionRow.Enqueue(commandsTransactions.RemoveCommand());
                             }
-                            while (comandosTransactions.ContComandos > 0)
-                            {
-                                AddOutPut("Comando: " + comandosTransactions.ConsultaComando() + " adicionado à fila de execução.");
-                                ExecutionRow.Enqueue(comandosTransactions.RemoveComando());
-                            }
-                            // Adiciona comandos de volta a fila de execução
-                            while (filaTemp.Count > 0)
-                            {
-                                ExecutionRow.Enqueue(filaTemp.Dequeue());
-                            }
-                            comandosTransactions.Transaction.LockType = TransactionTypeLock.Executing;
+
+                            // Adiciona os commandos de volta a fila de execução
+                            while (tempQueue.Count > 0) ExecutionRow.Enqueue(tempQueue.Dequeue());
+                            
+                            commandsTransactions.Transaction.LockType = TransactionTypeLock.Executing;
+
                             // Adiciona à lista de excluídos para remover no final
-                            excluidos.Add(TransactionNumber);
+                            excludes.Add(TransactionNumber);
                             break;
-                        case DisponibilidadeDado.DadoExclusiveOutraTransactions:
+
+                        case FreeData.ExclusiveOtherTransactionsData:
+
                             // Realiza validação para analisar se a transação entrou em deadlock
-                            retorno = VerificaDeadLock(TransactionNumber, comandosTransactions.WaitingData);
-                            TransactionsEliminada = int.Parse(retorno.Substring(0, retorno.IndexOf("|")));
+                            retorno = CheckDeadLock(TransactionNumber, commandsTransactions.WaitingData);
+                            RemovedTransaction = int.Parse(retorno.Substring(0, retorno.IndexOf("|")));
+
                             ciclo = retorno.Substring(retorno.IndexOf("|") + 1);
-                            if (TransactionsEliminada > -1)
+                            if (RemovedTransaction > -1)
                             {
-                                excluidos.Add(TransactionsEliminada);
+                                excludes.Add(RemovedTransaction);
                                 // Desaloca dados da transação.
-                                String msg = "";
-                                Transactions Transactions = TransactionsList[TransactionsEliminada];
+                                string msg = "";
+                                Transactions Transactions = TransactionsList[RemovedTransaction];
+
                                 // Realiza unlock do dado e retira da lista de dados utilizados.
-                                String[] dadosUtilizados = Transactions.ReturnDataUsed();
+                                string[] usedData = Transactions.ReturnDataUsed();
                                 msg = "************* DEAD LOCK DETECTADO ************* " + "\r\n";
                                 msg += ciclo + "\r\n";
-                                msg += "Transação " + TransactionsEliminada + " eliminada, pois foi a que executou menos comandos.\r\n";
+                                msg += "Transação " + RemovedTransaction + " eliminada, pois foi a que executou menos comandos.\r\n";
                                 AddOutPut(msg);
-                                foreach (String dado in dadosUtilizados)
+                                foreach (var dado in usedData)
                                 {
                                     // Adiciona saída unclok para dados liberados
-                                    AddOutPut(GeraLock(LockDataType.Unlock, Transactions.TransactionNumber, dado, Transactions.ReturnDataLockType(dado)));
+                                    AddOutPut(CreateLock(LockDataType.Unlock, Transactions.TransactionNumber, dado, Transactions.ReturnDataLockType(dado)));
                                     // Remove dado e transação da lista de dados locks
-                                    RemoveDadoListaLocks(Transactions, dado);
+                                    RemoveDataLocksList(Transactions, dado);
                                     // Remove dado da lista de transações
                                     Transactions.RemoveData(dado);
                                 }
@@ -125,49 +133,48 @@ namespace TrabalhoBanco2
                     }
                 }
             }
-            foreach (int TransactionNumber in excluidos)
-            {
-                WaitingTransactionsList.Remove(TransactionNumber);
-            }
+
+            foreach (var transactionNumber in excludes) WaitingTransactionsList.Remove(transactionNumber);
         }
 
-        private string VerificaDeadLock(int TransactionNumber, String Dado)
+        private string CheckDeadLock(int TransactionNumber, string Dado)
         {
             List<int> transacoesWaiting = new List<int>();
             transacoesWaiting.Add(TransactionNumber);
-            return VerificaDeadLock(TransactionNumber, Dado, transacoesWaiting);
+
+            return CheckDeadLock(TransactionNumber, Dado, transacoesWaiting);
         }
 
-        private string VerificaDeadLock(int TransactionNumber, String Dado, List<int> TransacoesWaiting)
+        private string CheckDeadLock(int TransactionNumber, string Dado, List<int> TransacoesWaiting)
         {
-            int eliminatedTransaction = -1;
             string retorno = "-1|x";
-            DataLockTransactions TransacoesUsandoDado;
-            // Se não existir o dado é pq a transação já foi Aborted
+            DataLockTransactions TransactionsUsingData;
+
+            // Se não existir o dado é pq a transação já foi abortada
             if (TransactionDataLock.ContainsKey(Dado))
             {
-                TransacoesUsandoDado = TransactionDataLock[Dado];
-                foreach (int transactionNumber in TransacoesUsandoDado.RetornaTransacoes())
+                TransactionsUsingData = TransactionDataLock[Dado];
+                foreach (var transactionNumber in TransactionsUsingData.ReturnTransactions())
                 {
                     // Não verifica a própria transação
-                    if (transactionNumber != TransactionNumber)
+                    if (!transactionNumber.Equals(TransactionNumber))
                     {
                         // Adiciona na lista e verifica se ocorreu dead lock.
-                        if (TransactionsList[TransactionNumber].LockType == TransactionTypeLock.Waiting)
+                        if (TransactionsList[TransactionNumber].LockType.Equals(TransactionTypeLock.Waiting))
                         {
                             if (TransacoesWaiting.Contains(TransactionNumber))
                             {
-                                // Elimina dead lock
-                                eliminatedTransaction = EliminaDeadLock(TransacoesWaiting);
-                                retorno = eliminatedTransaction + "|" + RetornaCicloTransacoes(TransacoesWaiting, eliminatedTransaction);
+                                // Elimina deadlock
+                                int eliminatedTransaction = RemoveDeadLock(TransacoesWaiting);
+                                retorno = eliminatedTransaction + "|" + ReturnTransactionsCycle(TransacoesWaiting, eliminatedTransaction);
                             }
                             else
                             {
                                 TransacoesWaiting.Add(TransactionNumber);
-                                // Retorna dado que a transação está Waiting.
-                                TransactionQueueCommand ComandosTransactions = WaitingTransactionsList[TransactionNumber];
+                                // Retorna dado que a transação está espera.
+                                TransactionQueueCommand commandsTransactions = WaitingTransactionsList[TransactionNumber];
                                 // Verifica pendencias desta transação.
-                                retorno = VerificaDeadLock(TransactionNumber, ComandosTransactions.WaitingData, TransacoesWaiting);
+                                retorno = CheckDeadLock(TransactionNumber, commandsTransactions.WaitingData, TransacoesWaiting);
                             }
                         }
                     }
@@ -176,569 +183,426 @@ namespace TrabalhoBanco2
             return retorno;
         }
 
-        public String RetornaCicloTransacoes(List<int> transactionList, int TransactionNumber)
+        public string ReturnTransactionsCycle(List<int> transactionList, int TransactionNumber)
         {
             string ciclo = "";
-            foreach (int transactionNumber in transactionList)
-            {
-                ciclo += "t" + transactionNumber + "=>";
-            }
+
+            foreach (var transactionNumber in transactionList) ciclo += "t" + transactionNumber + "=>";
+            
             ciclo += "t" + TransactionNumber;
             return ciclo;
         }
 
-        public int EliminaDeadLock(List<int> TransacoesWaiting)
+        public int RemoveDeadLock(List<int> TransacoesWaiting)
         {
-            int TransactionsEliminada = 0;
+            int removedTransaction = 0;
             int menorNumeroExecucoes = 999999999;
-            Transactions Transactions;
-            foreach (int TransactionNumber in TransacoesWaiting)
+            Transactions transactions;
+
+            foreach (var TransactionNumber in TransacoesWaiting)
             {
-                Transactions = TransactionsList[TransactionNumber];
-                if (Transactions.ExecutedCommands < menorNumeroExecucoes)
+                transactions = TransactionsList[TransactionNumber];
+
+                if (transactions.ExecutedCommands < menorNumeroExecucoes)
                 {
-                    menorNumeroExecucoes = Transactions.ExecutedCommands;
-                    TransactionsEliminada = TransactionNumber;
+                    menorNumeroExecucoes = transactions.ExecutedCommands;
+                    removedTransaction = TransactionNumber;
                 }
             }
-            return TransactionsEliminada;
+
+            return removedTransaction;
 
         }
 
         // Utilizado para retorna o tipo de disponibilidade de um dado acessado pelo comando de uma transação
-        private enum DisponibilidadeDado
+        private enum FreeData
         {
-            DadoDisponivel,
-            DadoExclusiveOutraTransactions,
-            DadoSharedTransactions,
-            DadoSharedOutraTransactions,
+            FreeData,
+            ExclusiveOtherTransactionsData,
+            SharedTransactionsData,
+            OtherSharedTransactionsData,
         }
 
-        private DisponibilidadeDado RetornaDisponibilidadeDado(Transactions Transactions, LockDataType LockDataType, String Dado)
+        private FreeData ReturnFreeData(Transactions Transactions, LockDataType LockDataType, string Dado)
         {
             // Verifica se o dado está lockado para alguma sessão
             if (TransactionDataLock.ContainsKey(Dado))
             {
-                DataLockTransactions dadoUtilizado = TransactionDataLock[Dado];
+                DataLockTransactions usedData = TransactionDataLock[Dado];
                 // Verifica se está lockado para a transação que está tentando acessar.
-                if (dadoUtilizado.VerificaLockParaTransacao(Transactions.TransactionNumber))
+                if (usedData.CheckLockForTransaction(Transactions.TransactionNumber))
                 {
-                    // Se o tipo de dado for estrita deve ter lock exclusivo, neste caso
-                    // não pode estar lockado para outras transações
-                    if (LockDataType == LockDataType.Exclusive && dadoUtilizado.NumeroDeTransacoes() > 1)
-                    {
-                        // deve adicionar na lista de espera.
-                        return DisponibilidadeDado.DadoExclusiveOutraTransactions;
-                    }
+                    /* Se o tipo de dado for restrito deve ter lock exclusivo, neste caso
+                     não pode estar lockado para outras transações */
+                    if (LockDataType.Equals(LockDataType.Exclusive) && usedData.NumberOfTransactions() > 1)
+                        return FreeData.ExclusiveOtherTransactionsData;
+                    
                     else
-                    {
-                        return DisponibilidadeDado.DadoSharedTransactions;
-                    }
+                        return FreeData.SharedTransactionsData;                    
                 }
+
                 // Verifica se tem lock exclusivo para outra sessão.
                 else
                 {
-                    // Adiciona à lista de espera quando estiver lock exclusivo para outra transação
-                    // Ou quando a transação pediu lock exclusivo
-                    if (dadoUtilizado.TipoLock == LockDataType.Exclusive || LockDataType == LockDataType.Exclusive)
-                    {
-                        return DisponibilidadeDado.DadoExclusiveOutraTransactions;
-                    }
+                    /* Adiciona à lista de espera quando estiver lock exclusivo para outra transação
+                     Ou quando a transação pediu lock exclusivo */
+                    if (usedData.LockType.Equals(LockDataType.Exclusive) || LockDataType.Equals(LockDataType.Exclusive))
+                        return FreeData.ExclusiveOtherTransactionsData;
+                    
                     else
-                    {
-                        return DisponibilidadeDado.DadoSharedOutraTransactions;
-                    }
+                        return FreeData.OtherSharedTransactionsData;                    
                 }
             }
             // Quandoo dado não está sendo utilizado por nenhuma sessão
             else
-            {
-                return DisponibilidadeDado.DadoDisponivel;
-            }
+                return FreeData.FreeData;            
         }
 
-        private void PosicionaCursorFinal(TextBox TextBox)
+        private void SetFinalPoint(TextBox TextBox)
         {
-            //TextBox.Focus();
             TextBox.SelectionStart = TextBox.Text.Length;
             TextBox.ScrollToCaret();
             TextBox.Refresh();
         }
 
 
-        private void ExecutaComando(String Comando)
+        private void RunCommand(string Command)
         {
-            Transactions Transactions = null;
+            Transactions transactions = null;
             // Extrai Tipo de dado
-            String tipoComando = Comando.Substring(0, 1);
+            string commandType = Command.Substring(0, 1);
+
             // retorna o tipo de dado
-            LockDataType LockDataType = RetornaLockType(tipoComando);
+            LockDataType LockDataType = ReturnLockType(commandType);
+
             // Extrai número da transação
-            int TransactionNumber = int.Parse(Comando.Substring(1, 1));
+            int transactionNumber = int.Parse(Command.Substring(1, 1));
+
             // Adiciona transação com status inicial executando
-            Transactions = AdicionaTransactions(TransactionNumber, TransactionTypeLock.Executing);
+            transactions = AddTransactions(transactionNumber, TransactionTypeLock.Executing);
+
             // Extrai nome do dado
             string dado = "";
-            if (LockDataType != LockDataType.Commit)
-            {
-                dado = Comando.Substring(3, 1);
-            }
+
+            if (!LockDataType.Equals(LockDataType.Commit))
+                dado = Command.Substring(3, 1);
+            
             // Tratamento para comando conforme o status da transação.
-            if (Transactions.LockType == TransactionTypeLock.Executing)
-            {
-                TratamentoTransactionsExecutando(LockDataType, dado, Transactions, Comando);
-            }
-            // Quando a transação estiver Waiting, adiciona o comando à fila de espera
-            else if (Transactions.LockType == TransactionTypeLock.Waiting)
-            {
-                AdicionarComandoFilaEspera(Transactions, Comando);
-            }
+            if (transactions.LockType.Equals(TransactionTypeLock.Executing))
+                SolvingExecutingTransactions(LockDataType, dado, transactions, Command);
+            
+            // Quando a transação estiver waiting, adiciona o comando à fila de espera
+            else if (transactions.LockType.Equals(TransactionTypeLock.Waiting))
+                AddCommandWaitingQueue(transactions, Command);
+            
             else
-            {
-                AddOutPut("Transação " + Transactions.TransactionNumber + " Aborted. Comando " + Comando + " ignorado.");
-            }
+                AddOutPut("Transação " + transactions.TransactionNumber + " Aborted. Command " + Command + " ignorado.");
+            
         }
 
-        public void AdicionarComandoFilaEspera(Transactions Transactions, String Comando)
+        public void AddCommandWaitingQueue(Transactions Transactions, string Command)
         {
             // Adiciona a transação à fila quando ainda não existir
-            TransactionQueueCommand TransactionQueueCommand = null;
+            TransactionQueueCommand transactionQueueCommand = null;
             if (!WaitingTransactionsList.ContainsKey(Transactions.TransactionNumber))
             {
                 Transactions.LockType = TransactionTypeLock.Waiting;
-                TransactionQueueCommand = new TransactionQueueCommand(Transactions);
-                WaitingTransactionsList.Add(Transactions.TransactionNumber, TransactionQueueCommand);
+                transactionQueueCommand = new TransactionQueueCommand(Transactions);
+                WaitingTransactionsList.Add(Transactions.TransactionNumber, transactionQueueCommand);
             }
-            // Retorna a fila de comandos da transação.
+            // Retorna a fila de Commands da transação.
             else
-            {
-                TransactionQueueCommand = WaitingTransactionsList[Transactions.TransactionNumber];
-            }
-            // Adiciona comando à fila de espera da transação.
-            TransactionQueueCommand.AdicionaComando(Comando);
-            AddOutPut("Comando: " + Comando + " adicionado à fila de espera.");
+                transactionQueueCommand = WaitingTransactionsList[Transactions.TransactionNumber];
+
+            // Adiciona Command à fila de espera da transação.
+            transactionQueueCommand.AddComamand(Command);
+            AddOutPut("Comando: " + Command + " adicionado à fila de espera.");
 
         }
 
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="LockDataType">Utilizado pra indicar qual o tipo de lock está sobre o dado</param>
-        /// <param name="Dado">Dado sendo utilizado pela transação</param>
-        /// <param name="Transactions">Transação que executou o comando</param>
-        /// <param name="Comando">Comando executado pela transação</param>
-        public void TratamentoTransactionsExecutando(LockDataType LockDataType, String Dado, Transactions Transactions, String Comando)
+        public void SolvingExecutingTransactions(LockDataType LockDataType, string Dado, Transactions Transactions, string Command)
         {
-            DataLockTransactions dadoUtilizado;
+            DataLockTransactions usedData;
+
             // Verifica se o dado está disponível
-            if (LockDataType == LockDataType.Commit)
+            if (LockDataType.Equals(LockDataType.Commit))
             {
-                // Quando for commit, verifica se o status da transação esta Waiting.
-                // se não estiver percorre a lista de dados lockadas pela transação e libera todas
-                // e dispara o commit
-                // Se estiver Waiting adiciona o comnado commit a lista de espera
-                if (Transactions.LockType == TransactionTypeLock.Waiting)
-                {
-                    AdicionarComandoFilaEspera(Transactions, Comando);
-                }
+                /* Quando for commit, verifica se o status da transação esta Waiting.
+                 se não estiver percorre a lista de dados lockadas pela transação e libera todas
+                 e dispara o commit
+                 Se estiver Waiting adiciona o comando commit a lista de espera */
+                if (Transactions.LockType.Equals(TransactionTypeLock.Waiting))
+                    AddCommandWaitingQueue(Transactions, Command);
+                
                 // libera lock dados e realiza commit.
-                else if (Transactions.LockType != TransactionTypeLock.Aborted)
+                else if (!Transactions.LockType.Equals(TransactionTypeLock.Aborted))
                 {
                     // Realiza unlock do dado e retira da lista de dados utilizados.
-                    String[] dadosUtilizados = Transactions.ReturnDataUsed();
-                    foreach (String dado in dadosUtilizados)
+                    string[] usedDataVet = Transactions.ReturnDataUsed();
+                    foreach (var dado in usedDataVet)
                     {
                         // Adiciona saída unclok para dados liberados
-                        AddOutPut(GeraLock(LockDataType.Unlock, Transactions.TransactionNumber, dado, Transactions.ReturnDataLockType(dado)));
+                        AddOutPut(CreateLock(LockDataType.Unlock, Transactions.TransactionNumber, dado, Transactions.ReturnDataLockType(dado)));
+
                         // Remove dado e transação da lista de dados locks
-                        RemoveDadoListaLocks(Transactions, dado);
+                        RemoveDataLocksList(Transactions, dado);
+
                         // Remove dado da lista de transações
                         Transactions.RemoveData(dado);
                     }
-                    // Incrementa comandos executados da transação
+                    // Incrementa Commands executados da transação
                     Transactions.ExecutedCommands++;
+
                     // Adiciona saída para commit.
-                    AddOutPut(Comando);
+                    AddOutPut(Command);
                 }
             }
-            // Verifica disponibidade do dado para a transação e comando
+            // Verifica disponibidade do dado para a transação e Command
             else
             {
-                //DadoLockTransactions dadoUtilizado;
-                DisponibilidadeDado dispDado = RetornaDisponibilidadeDado(Transactions, LockDataType, Dado);
+                //DadoLockTransactions usedData;
+                FreeData freeData = ReturnFreeData(Transactions, LockDataType, Dado);
                 // Dado não foi lockado por nenhuma transação
-                if (dispDado == DisponibilidadeDado.DadoDisponivel)
+                if (freeData.Equals(FreeData.FreeData))
                 {
-                    dadoUtilizado = new DataLockTransactions(Dado, LockDataType);
-                    TransactionDataLock.Add(Dado, dadoUtilizado);
-                    TransactionDataLock[Dado].AdicionaTransacao(Transactions);
+                    usedData = new DataLockTransactions(Dado, LockDataType);
+                    TransactionDataLock.Add(Dado, usedData);
+                    TransactionDataLock[Dado].AddTransaction(Transactions);
                     Transactions.AddData(Dado, LockDataType);
                     // Adiciona lock.
-                    AddOutPut(GeraLock(LockDataType, Transactions.TransactionNumber, Dado, null));
-                    // Incrementa comandos executados da transação
+                    AddOutPut(CreateLock(LockDataType, Transactions.TransactionNumber, Dado, null));
+                    // Incrementa Commands executados da transação
                     Transactions.ExecutedCommands++;
-                    // Adiciona comando lido
-                    AddOutPut(Comando);
+                    // Adiciona Command lido
+                    AddOutPut(Command);
                 }
                 // Dado já esta lockado para a transação, mas como shared
-                else if (dispDado == DisponibilidadeDado.DadoSharedTransactions)
+                else if (freeData.Equals(FreeData.SharedTransactionsData))
                 {
-                    dadoUtilizado = TransactionDataLock[Dado];
+                    usedData = TransactionDataLock[Dado];
                     // Faz upgrade no lock se necessário.
-                    if (UpgradeLock(dadoUtilizado, LockDataType, Transactions))
-                    {
-                        AddOutPut(GeraLock(LockDataType, Transactions.TransactionNumber, Dado, null));
-                    }
-                    // Incrementa comandos executados da transação
+                    if (UpgradeLock(usedData, LockDataType, Transactions))
+                        AddOutPut(CreateLock(LockDataType, Transactions.TransactionNumber, Dado, null));
+                    
+                    // Incrementa Commands executados da transação
                     Transactions.ExecutedCommands++;
-                    // Adiciona comando lido
-                    AddOutPut(Comando);
+                    // Adiciona Command lido
+                    AddOutPut(Command);
                 }
                 // Dado está com lock shared em outra transação
-                else if (dispDado == DisponibilidadeDado.DadoSharedOutraTransactions)
-                {
-                    dadoUtilizado = TransactionDataLock[Dado];
-                    // Adiciona transação a lista de dados lockados
-                    //TransactionDataLock.Add(Dado, dadoUtilizado);
+                else if (freeData.Equals(FreeData.OtherSharedTransactionsData))
+                {   
                     // Adiciona o dado à lista de dados da transação
                     Transactions.AddData(Dado, LockDataType);
-                    TransactionDataLock[Dado].AdicionaTransacao(Transactions);
+                    TransactionDataLock[Dado].AddTransaction(Transactions);
                     // Adiciona lock.
-                    AddOutPut(GeraLock(LockDataType, Transactions.TransactionNumber, Dado, null));
-                    // Incrementa comandos executados da transação
+                    AddOutPut(CreateLock(LockDataType, Transactions.TransactionNumber, Dado, null));
+                    // Incrementa Commands executados da transação
                     Transactions.ExecutedCommands++;
-                    // Adiciona comando lido
-                    AddOutPut(Comando);
+                    // Adiciona Command lido
+                    AddOutPut(Command);
                 }
-                // Dado está com lock exclusivo em outra transação
-                // ou precisa de lock exclusivo para a transação atual
-                else if (dispDado == DisponibilidadeDado.DadoExclusiveOutraTransactions)
-                {
-                    AdicionarComandoFilaEspera(Transactions, Comando);
-                }
+                /* Dado está com lock exclusivo em outra transação
+                   ou precisa de lock exclusivo para a transação atual */
+                else if (freeData.Equals(FreeData.ExclusiveOtherTransactionsData))
+                    AddCommandWaitingQueue(Transactions, Command);
+                
             }
         }
 
-        // TODO
-        // Remover no final se não ocorre erro no método atual
-        public void TratamentoTransactionsExecutando_old(LockDataType LockDataType, String Dado, Transactions Transactions, String Comando)
-        {
-            DataLockTransactions dadoUtilizado;
-            // Verifica se o dado está disponível
-            if (LockDataType == LockDataType.Commit)
-            {
-                // Quando for commit, verifica se o status da transação esta Waiting.
-                // se não estiver percorre a lista de dados lockadas pela transação e libera todas
-                // e dispara o commit
-                // Se estiver Waiting adiciona o comnado commit a lista de espera
-                //w1(x)-r2(y)-w2(y)-c2-w1(y)-c1
-                if (Transactions.LockType == TransactionTypeLock.Waiting)
-                {
-                    AdicionarComandoFilaEspera(Transactions, Comando);
-                }
-                // libera lock dados e realiza commit.
-                else
-                {
-                    // Realiza unlock do dado e retira da lista de dados utilizados.
-                    String[] dadosUtilizados = Transactions.ReturnDataUsed();
-                    foreach (String dado in dadosUtilizados)
-                    {
-                        // Adiciona saída unclok para dados liberados
-                        AddOutPut(GeraLock(LockDataType.Unlock, Transactions.TransactionNumber, dado, Transactions.ReturnDataLockType(dado)));
-                        // Remove dado e transação da lista de dados locks
-                        RemoveDadoListaLocks(Transactions, dado);
-                        // Remove dado da lista de transações
-                        Transactions.RemoveData(dado);
-                    }
-                    // Incrementa comandos executados da transação
-                    Transactions.ExecutedCommands++;
-                    // Adiciona saída para commit.
-                    AddOutPut(Comando);
-                }
-            }
-            else if (TransactionDataLock.ContainsKey(Dado))
-            {
-                dadoUtilizado = dadoUtilizado = TransactionDataLock[Dado];
-                // Verifica se está lockado para a transação que está tentando acessar.
-                if (dadoUtilizado.VerificaLockParaTransacao(Transactions.TransactionNumber))
-                {
-                    // Se o tipo de dado for estrita deve ter lock exclusivo, neste caso
-                    // não pode estar lockado para outras transações
-                    if (LockDataType == LockDataType.Exclusive && dadoUtilizado.NumeroDeTransacoes() > 1)
-                    {
-                        // deve adicionar na lista de espera.
-                        AdicionarComandoFilaEspera(Transactions, Comando);
-                    }
-                    else
-                    {
-                        // Faz upgrade no lock se necessário.
-                        if (UpgradeLock(dadoUtilizado, LockDataType, Transactions))
-                        {
-                            AddOutPut(GeraLock(LockDataType, Transactions.TransactionNumber, Dado, null));
-                        }
-                        // Incrementa comandos executados da transação
-                        Transactions.ExecutedCommands++;
-                        // Adiciona comando lido
-                        AddOutPut(Comando);
-                    }
-                }
-                // Verifica se tem lock exclusivo para outra sessão.
-                else
-                {
-                    // Adiciona à lista de espera quando estiver lock exclusivo para outra transação
-                    // Ou quando a transação pediu lock exclusivo
-                    if (dadoUtilizado.TipoLock == TrabalhoBanco2.LockDataType.Exclusive || LockDataType == LockDataType.Exclusive)
-                    {
-                        AdicionarComandoFilaEspera(Transactions, Comando);
-                    }
-                    else
-                    {
-                        // Adiciona transação a lista de dados lockados
-                        TransactionDataLock.Add(Dado, dadoUtilizado);
-                        // Adiciona o dado à lista de dados da transação
-                        Transactions.AddData(Dado, LockDataType);
-                        // Adiciona lock.
-                        AddOutPut(GeraLock(LockDataType, Transactions.TransactionNumber, Dado, null));
-                        // Incrementa comandos executados da transação
-                        Transactions.ExecutedCommands++;
-                        // Adiciona comando lido
-                        AddOutPut(Comando);
-                    }
-                }
-            }
-            else
-            {
-                // Quando o tipo de dado não existe na lista de lock
-                // Adiciona o dado e gera a saída com lock
-                dadoUtilizado = new DataLockTransactions(Dado, LockDataType);
-                TransactionDataLock.Add(Dado, dadoUtilizado);
-                TransactionDataLock[Dado].AdicionaTransacao(Transactions);
-                Transactions.AddData(Dado, LockDataType);
-                // Adiciona lock.
-                AddOutPut(GeraLock(LockDataType, Transactions.TransactionNumber, Dado, null));
-                // Incrementa comandos executados da transação
-                Transactions.ExecutedCommands++;
-                // Adiciona comando lido
-                AddOutPut(Comando);
-            }
-        }
-
-        private void RemoveDadoListaLocks(Transactions Transactions, String Dado)
+        private void RemoveDataLocksList(Transactions Transactions, string Dado)
         {
             DataLockTransactions dadoLockTransactions = TransactionDataLock[Dado];
             if (dadoLockTransactions != null)
             {
-                dadoLockTransactions.RemoveTransacao(Transactions);
-                // Se não existe mais nenhuma transação utilizando o dado
-                // então remove da lista de dados utilizados.
-                if (dadoLockTransactions.NumeroDeTransacoes() == 0)
-                {
+                dadoLockTransactions.RemoveTransaction(Transactions);
+
+                /* Se não existe mais nenhuma transação utilizando o dado
+                   então remove da lista de dados utilizados. */
+                if (dadoLockTransactions.NumberOfTransactions().Equals(0))
                     TransactionDataLock.Remove(Dado);
-                }
+                
             }
         }
 
         // Adiciona a transação à lista de transações.
-        private Transactions AdicionaTransactions(int TransactionNumber, TransactionTypeLock LockTransactions)
+        private Transactions AddTransactions(int TransactionNumber, TransactionTypeLock LockTransactions)
         {
-            Transactions Transactions = null;
+            Transactions transaction = null;
             if (!TransactionsList.ContainsKey(TransactionNumber))
             {
-                Transactions = new Transactions(TransactionNumber, LockTransactions);
-                TransactionsList.Add(TransactionNumber, Transactions);
+                transaction = new Transactions(TransactionNumber, LockTransactions);
+                TransactionsList.Add(TransactionNumber, transaction);
             }
             else
-            {
-                Transactions = TransactionsList[TransactionNumber];
-            }
-            return Transactions;
+                transaction = TransactionsList[TransactionNumber];
+            
+            return transaction;
         }
 
-        private LockDataType RetornaLockType(String Tipo)
+        private LockDataType ReturnLockType(string Tipo)
         {
-            LockDataType tipoDadoLock = LockDataType.Unlock;
-            if (Tipo == "w")
-            {
-                tipoDadoLock = LockDataType.Exclusive;
-            }
-            else if (Tipo == "r")
-            {
-                tipoDadoLock = LockDataType.Shared;
-            }
-            else if (Tipo == "c")
-            {
-                tipoDadoLock = LockDataType.Commit;
-            }
-            return tipoDadoLock;
+            LockDataType lockDataType = LockDataType.Unlock;
+
+            if (Tipo.Equals("w"))
+                lockDataType = LockDataType.Exclusive;
+            
+            else if(Tipo.Equals("r"))
+                lockDataType = LockDataType.Shared;
+            
+            else if (Tipo.Equals("c"))
+                lockDataType = LockDataType.Commit;
+            
+            return lockDataType;
         }
 
-        private string GeraLock(LockDataType LockDataType, int TransactionNumber, String Dado, LockDataType? LockDataTypeUnlock)
+        private string CreateLock(LockDataType LockDataType, int TransactionNumber, string Dado, LockDataType? LockDataTypeUnlock)
         {
-            string OutPut;
+            string outPut;
+
             // formata tipo de lock
-            if (LockDataType == LockDataType.Unlock)
+            if (LockDataType.Equals(LockDataType.Unlock))
             {
-                OutPut = "u";
-                if (LockDataTypeUnlock == LockDataType.Exclusive)
-                {
-                    OutPut += "x";
-                }
+                outPut = "u";
+                if (LockDataTypeUnlock.Equals(LockDataType.Exclusive))
+                    outPut += "x";
+                
                 else
-                {
-                    OutPut += "h";
-                }
+                    outPut += "h";
+                
             }
             else
             {
-                OutPut = "l";
-                if (LockDataType == LockDataType.Exclusive)
-                {
-                    OutPut += "x";
-                }
+                outPut = "l";
+                if (LockDataType.Equals(LockDataType.Exclusive))
+                    outPut += "x";
+                
                 else
-                {
-                    OutPut += "h";
-                }
+                    outPut += "h";
+                
             }
             // adiciona o número da transação ao lock
-            OutPut += TransactionNumber;
-            OutPut += "[" + Dado + "]";
-            return OutPut;
+            outPut += TransactionNumber;
+            outPut += "[" + Dado + "]";
+
+            return outPut;
         }
 
         private void AddOutPut(string outPut)
         {
-            if (outPut != "")
+            if (!outPut.Equals(""))
             {
-                if (OutPut.Text == "")
-                {
+                if (OutPut.Text.Equals(""))
                     OutPut.Text = outPut;
-                }
+                
                 else
-                {
-                    OutPut.Text += "\r\n" + outPut;
-                }
+                    OutPut.Text += "\r\n" + outPut;                
             }
         }
 
         private bool UpgradeLock(DataLockTransactions Dado, LockDataType LockType, Transactions Transactions)
         {
-            if (LockType == LockDataType.Exclusive && Dado.TipoLock != LockDataType.Exclusive)
+            if (LockType.Equals(LockDataType.Exclusive) && !Dado.LockType.Equals(LockDataType.Exclusive))
             {
-                Dado.TipoLock = LockDataType.Exclusive;
-                Transactions.ChangeDataLockType(Dado.Dado, LockDataType.Exclusive);
+                Dado.LockType = LockDataType.Exclusive;
+                Transactions.ChangeDataLockType(Dado.Data, LockDataType.Exclusive);
                 return true;
             }
+
             return false;
         }
 
-        public Protocolo2PLBasico()
+        public string RetornaRunningRow()
         {
-            TransactionsList = new Dictionary<int, Transactions>();
-            TransactionDataLock = new Dictionary<string, DataLockTransactions>();
-            WaitingTransactionsList = new Dictionary<int, TransactionQueueCommand>();
-        }
-
-        public String RetornaRunningRow()
-        {
-            String retorno = "";
-            foreach (string comando in ExecutionRow)
+            string retorno = "";
+            foreach (var command in ExecutionRow)
             {
-                if (retorno == "")
-                {
-                    retorno = comando;
-                }
+                if (retorno.Equals(""))
+                    retorno = command;
+                
                 else
-                {
-                    retorno += "\r\n" + comando;
-                }
+                    retorno += "\r\n" + command;                
             }
+
             return retorno;
         }
 
-        public String RetornaTransacoesEmEspera()
+        public string ReturnWaitingTransactions()
         {
-            String retorno = "";
-            foreach (Transactions Transactions in TransactionsList.Values)
+            string retorno = "";
+            foreach (var transactions in TransactionsList.Values)
             {
-                if (Transactions.LockType == TransactionTypeLock.Waiting)
+                if (transactions.LockType.Equals(TransactionTypeLock.Waiting))
                 {
-                    if (retorno != "")
-                    {
+                    if (!retorno.Equals(""))
                         retorno += "\r\n";
-                    }
-                    retorno += "Transação " + Transactions.TransactionNumber;
-                    TransactionQueueCommand filaComandos = WaitingTransactionsList[Transactions.TransactionNumber];
-                    retorno += ": " + filaComandos.WaitingData;
+                    
+                    retorno += "Transação " + transactions.TransactionNumber;
+                    var filaCommands = WaitingTransactionsList[transactions.TransactionNumber];
+                    retorno += ": " + filaCommands.WaitingData;
                 }
             }
             return retorno;
         }
 
-        public String RetornaTransacoesAborteds()
+        public string ReturnTransactionsAborteds()
         {
-            String retorno = "";
-            foreach (Transactions Transactions in TransactionsList.Values)
+            string retorno = "";
+            foreach (var transactions in TransactionsList.Values)
             {
-                if (Transactions.LockType == TransactionTypeLock.Aborted)
+                if (transactions.LockType.Equals(TransactionTypeLock.Aborted))
                 {
-                    if (retorno == "")
-                    {
-                        retorno = "Transação " + Transactions.TransactionNumber;
-                    }
+                    if (retorno.Equals(""))
+                        retorno = "Transação " + transactions.TransactionNumber;
+                    
                     else
-                    {
-                        retorno += "\r\n" + "Transação " + Transactions.TransactionNumber;
-                    }
+                        retorno += "\r\n" + "Transação " + transactions.TransactionNumber;                    
                 }
             }
+
             return retorno;
         }
 
-        public String RetornaQueue()
+        public string ReturnQueue()
         {
-            String retorno = "";
+            string retorno = "";
 
-            foreach (TransactionQueueCommand comandosTransactions in WaitingTransactionsList.Values)
+            foreach (var commandsTransactions in WaitingTransactionsList.Values)
             {
-                if (retorno != "")
-                {
+                if (!retorno.Equals(""))
                     retorno += "\r\n";
-                }
-                retorno += "Transação: " + comandosTransactions.Transaction.TransactionNumber + "\r\n";
-                string[] comandos = comandosTransactions.RetornaFilaComandos();
-                foreach (String comando in comandos)
-                {
-                    retorno += comando + "\r\n";
-                }
+                
+                retorno += "Transação: " + commandsTransactions.Transaction.TransactionNumber + "\r\n";
+                string[] commands = commandsTransactions.ReturnQueueCommand();
+
+                foreach (var command in commands) retorno += command + "\r\n";                
             }
 
             return retorno;
         }
 
-        public String RetornaDataLock()
+        public string ReturnDataLock()
         {
-            String retorno = "";
-            foreach (Transactions Transactions in TransactionsList.Values)
+            string retorno = "";
+            foreach (var transactions in TransactionsList.Values)
             {
-                string[] DadosUtilizados = Transactions.ReturnDataUsed();
-                if (DadosUtilizados.Count() > 0)
+                string[] usedData = transactions.ReturnDataUsed();
+                if (usedData.Count() > 0)
                 {
-                    if (retorno != "")
+                    if (!retorno.Equals("")) retorno += "\r\n";
+                    
+                    retorno += "Transação" + transactions.TransactionNumber + ": ";
+
+                    for (int i = 0; i < usedData.Count(); i++)
                     {
-                        retorno += "\r\n";
-                    }
-                    retorno += "Transação" + Transactions.TransactionNumber + ": ";
-                    for (int i = 0; i < DadosUtilizados.Count(); i++)
-                    {
-                        retorno += Transactions.ReturnDataLockType(DadosUtilizados[i]) + "(" + DadosUtilizados[i] + ")";
-                        if (i < DadosUtilizados.Count() - 1)
-                        {
+                        retorno += transactions.ReturnDataLockType(usedData[i]) + "(" + usedData[i] + ")";
+
+                        if (i < usedData.Count() - 1)
                             retorno += ",";
-                        }
                     }
                 }
             }
+
             return retorno;
         }
     }
