@@ -114,7 +114,7 @@ namespace TrabalhoBanco2
 
                                 // Realiza unlock do dado e retira da lista de dados utilizados.
                                 string[] usedData = Transactions.ReturnDataUsed();
-                                msg = "************* DEAD LOCK DETECTADO ************* " + "\r\n";
+                                msg = "----------- DEAD LOCK ----------- " + "\r\n";
                                 msg += ciclo + "\r\n";
                                 msg += "Transação " + RemovedTransaction + " eliminada, pois foi a que executou menos comandos.\r\n";
                                 AddOutPut(msg);
@@ -296,7 +296,7 @@ namespace TrabalhoBanco2
                 AddCommandWaitingQueue(transactions, Command);
             
             else
-                AddOutPut("Transação " + transactions.TransactionNumber + " Aborted. Command " + Command + " ignorado.");
+                AddOutPut("Transação " + transactions.TransactionNumber + " abortada. Comando " + Command + " ignorado.");
             
         }
 
@@ -327,9 +327,8 @@ namespace TrabalhoBanco2
             // Verifica se o dado está disponível
             if (LockDataType.Equals(LockDataType.Commit))
             {
-                /* Quando for commit, verifica se o status da transação esta Waiting.
-                 se não estiver percorre a lista de dados lockadas pela transação e libera todas
-                 e dispara o commit
+                /* Quando for commit, verifica se o status da transação esta waiting.
+                 se não estiver percorre a lista de dados lockadas pela transação e libera todas e dispara o commit
                  Se estiver Waiting adiciona o comando commit a lista de espera */
                 if (Transactions.LockType.Equals(TransactionTypeLock.Waiting))
                     AddCommandWaitingQueue(Transactions, Command);
@@ -468,7 +467,7 @@ namespace TrabalhoBanco2
                     outPut += "x";
                 
                 else
-                    outPut += "h";
+                    outPut += "s";
                 
             }
             else
@@ -478,7 +477,7 @@ namespace TrabalhoBanco2
                     outPut += "x";
                 
                 else
-                    outPut += "h";
+                    outPut += "s";
                 
             }
             // adiciona o número da transação ao lock
